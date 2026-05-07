@@ -1,4 +1,23 @@
+// ─── Tipos de Misiones ────────────────────────────────────────────────────────
 export type Rango = 'D' | 'C' | 'B' | 'A' | 'S';
+
+export type Categoria =
+  | 'Recolección'
+  | 'Exploración'
+  | 'Captura'
+  | 'Escolta'
+  | 'Caza';
+
+export interface Mision {
+  id: string;
+  title: string;
+  categoria: Categoria;
+  rango: Rango;
+  completed: boolean;
+  createdAt: number;
+}
+
+// ─── Tipos de Notas ───────────────────────────────────────────────────────────
 
 export interface BaseNote {
   id: string;
