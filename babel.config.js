@@ -1,9 +1,9 @@
 module.exports = function(api) {
-    api.cache(true);
-    return {
-      presets: ['babel-preset-expo'],
-      plugins: [
-        'react-native-reanimated/plugin', // Este debe ser siempre el último de la lista
-      ],
-    };
+  api.cache(true);
+  return {
+    presets: ['babel-preset-expo'],
+    plugins: [
+      'react-native-worklets/plugin', // El motor ahora se llama así
+    ],
   };
+};
