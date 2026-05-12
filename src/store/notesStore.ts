@@ -35,7 +35,7 @@ export const useNotesStore = create<NotesState>()((set) => ({
     try {
       const all = await getNotes();
       set({
-        notes:      all.filter(n => n.type === 'note') as Note[], // Cambiado de 'text' a 'note'
+        notes:      all.filter(n => n.type === 'note') as Note[], 
         checklists: all.filter(n => n.type === 'checklist') as ChecklistNote[],
         ideas:      all.filter(n => n.type === 'idea') as IdeaNote[],
       });
