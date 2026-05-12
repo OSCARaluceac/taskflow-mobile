@@ -26,9 +26,13 @@ export interface BaseNote {
   updatedAt: number;
 }
 
-export interface Note extends BaseNote {
+export interface Note {
+  id: string;
+  title: string;
   content: string;
-  type: 'text';
+  type: 'note'; 
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ChecklistItem {

@@ -1,49 +1,24 @@
 import { useLocalSearchParams, router } from 'expo-router';
 import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useEffect, useState } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../../src/hooks/ThemeContext';
-import { Mision } from '../../src/types';
+import { useMisiones } from '../../src/hooks/useMisiones';
 import { Colors, Spacing } from '../../src/constants/colors';
 
-/**
- * CORRECCIÓN: El componente original llamaba a useMisiones() que crea su propia
- * instancia de estado con una lista vacía (useMisiones no es un store global).
- * La solución correcta es leer directamente de AsyncStorage con el id de la ruta.
- */
+// Ya no usa AsyncStorage directamente — lee del estado en memoria de useMisiones,
+// que es el mismo estado global que HomeScreen. Cualquier cambio en HomeScreen
+// se refleja aquí al instante sin necesidad de releer storage.
+
 export default function DetalleMision() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { isDark } = useTheme();
-  const [mision, setMision] = useState<Mision | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { misiones } = useMisiones();
+
+  const mision = misiones.find(m => m.id === id) ?? null;
 
   const bg = isDark ? Colors.zinc950 : Colors.parchmentLight;
   const textColor = isDark ? Colors.stone200 : Colors.stone800;
   const rangoColor = mision ? Colors.rangoColors[mision.rango] : Colors.gold;
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const raw = await AsyncStorage.getItem('taskflow_misiones');
-        if (raw) {
-          const list: Mision[] = JSON.parse(raw);
-          setMision(list.find(m => m.id === id) ?? null);
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
-  }, [id]);
-
-  if (loading) {
-    return (
-      <View style={[styles.center, { backgroundColor: bg }]}>
-        <ActivityIndicator color={Colors.gold} />
-      </View>
-    );
-  }
 
   if (!mision) {
     return (
@@ -81,7 +56,7 @@ export default function DetalleMision() {
 
         <View style={[styles.metaBox, { borderColor: Colors.stone200, backgroundColor: isDark ? Colors.zinc900 : Colors.stone100 }]}>
           <Text style={[styles.metaLabel, { color: isDark ? Colors.stone500 : Colors.stone400 }]}>ID DEL ENCARGO</Text>
-          <Text style={[styles.metaValue, { color: isDark ? Colors.stone300 : Colors.stone600 }]}>{mision.id}</Text>
+          <Text style={[styles.metaValue, { color: isDark ? Colors.stone400 : Colors.stone600 }]}>{mision.id}</Text>
         </View>
 
         <Pressable
@@ -107,10 +82,7 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     marginBottom: Spacing.lg,
   },
-  rangoText: {
-    fontFamily: 'PressStart2P_400Regular',
-    fontSize: 8,
-  },
+  rangoText: { fontFamily: 'PressStart2P_400Regular', fontSize: 8 },
   categoria: {
     fontFamily: 'PressStart2P_400Regular',
     fontSize: 7,
@@ -130,39 +102,16 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xl,
     alignItems: 'center',
   },
-  statusText: {
-    fontFamily: 'PressStart2P_400Regular',
-    fontSize: 9,
-  },
+  statusText: { fontFamily: 'PressStart2P_400Regular', fontSize: 9 },
   metaBox: {
     borderWidth: 1,
     padding: Spacing.md,
     borderRadius: 2,
     marginBottom: Spacing.xl,
   },
-  metaLabel: {
-    fontFamily: 'PressStart2P_400Regular',
-    fontSize: 6,
-    marginBottom: 6,
-  },
-  metaValue: {
-    fontFamily: 'Lora_400Regular',
-    fontSize: 12,
-  },
-  notFound: {
-    fontFamily: 'PressStart2P_400Regular',
-    fontSize: 9,
-    marginBottom: Spacing.xl,
-  },
-  backBtn: {
-    borderWidth: 1,
-    padding: Spacing.md,
-    alignItems: 'center',
-    marginTop: 'auto',
-  },
-  backBtnText: {
-    fontFamily: 'PressStart2P_400Regular',
-    fontSize: 8,
-    color: Colors.gold,
-  },
+  metaLabel: { fontFamily: 'PressStart2P_400Regular', fontSize: 6, marginBottom: 6 },
+  metaValue: { fontFamily: 'Lora_400Regular', fontSize: 12 },
+  notFound: { fontFamily: 'PressStart2P_400Regular', fontSize: 9, marginBottom: Spacing.xl },
+  backBtn: { borderWidth: 1, padding: Spacing.md, alignItems: 'center', marginTop: 'auto' },
+  backBtnText: { fontFamily: 'PressStart2P_400Regular', fontSize: 8, color: Colors.gold },
 });

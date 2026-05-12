@@ -1,8 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useState, useCallback } from 'react';
 import { Mision, Rango, Categoria } from '../types';
 
-const STORAGE_KEY = 'taskflow_misiones';
+// Las misiones son datos de juego locales — no se sincronizan con la API
+// de la Fase 7 (que es solo para notas). Se guardan en memoria mientras
+// la app está abierta. En una fase futura se podría añadir persistencia
+// con expo-file-system o una tabla separada en el backend.
 
 const MISIONES_ELITE: Omit<Mision, 'id' | 'completed' | 'createdAt'>[] = [
   { title: 'Cazar al Dragón Escarlata del Pico Eterno', categoria: 'Caza', rango: 'S' },
@@ -17,42 +19,43 @@ const MISIONES_ELITE: Omit<Mision, 'id' | 'completed' | 'createdAt'>[] = [
   { title: 'Mantenimiento del Jardín de la Academia', categoria: 'Recolección', rango: 'D' },
 ];
 
+function crearMisionesIniciales(): Mision[] {
+  return MISIONES_ELITE.map((m, i) => ({
+    ...m,
+    id: `init-${i}`,
+    completed: false,
+    createdAt: Date.now() - i * 1000,
+  }));
+}
+
+// Estado global en módulo — persiste mientras la app esté en memoria
+// (sobrevive a navegación entre pantallas, pero no a un cierre completo)
+let estadoGlobal: Mision[] = crearMisionesIniciales();
+const suscriptores: Set<() => void> = new Set();
+
+function notificar() {
+  suscriptores.forEach(fn => fn());
+}
+
 export function useMisiones() {
-  const [misiones, setMisiones] = useState<Mision[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [, forceUpdate] = useState(0);
 
-  const persist = async (data: Mision[]) => {
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  };
-
-  const cargarMisiones = useCallback(async () => {
-    setLoading(true);
-    try {
-      const raw = await AsyncStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        setMisiones(JSON.parse(raw));
-      } else {
-        // PASO 3: Carga automática de 10 misiones si no hay datos
-        const iniciales = MISIONES_ELITE.map((m, i) => ({
-          ...m,
-          id: `init-${i}`,
-          completed: false,
-          createdAt: Date.now() - i * 1000
-        }));
-        setMisiones(iniciales);
-        persist(iniciales);
-      }
-    } catch (_) {
-    } finally {
-      setLoading(false);
-    }
+  // Suscribirse a cambios del estado global
+  const suscribirse = useCallback(() => {
+    const actualizar = () => forceUpdate(n => n + 1);
+    suscriptores.add(actualizar);
+    return () => suscriptores.delete(actualizar);
   }, []);
 
-  useEffect(() => {
-    cargarMisiones();
-  }, [cargarMisiones]);
+  // Ejecutar suscripción al montar
+  useState(() => {
+    const unsub = suscribirse();
+    return unsub;
+  });
 
-  const agregar = useCallback(async (title: string, categoria: Categoria, rango: Rango) => {
+  const misiones = estadoGlobal;
+
+  const agregar = useCallback((title: string, categoria: Categoria, rango: Rango) => {
     const nueva: Mision = {
       id: Date.now().toString(),
       title,
@@ -61,58 +64,62 @@ export function useMisiones() {
       completed: false,
       createdAt: Date.now(),
     };
-    setMisiones(prev => {
-      const next = [nueva, ...prev];
-      persist(next);
-      return next;
-    });
+    estadoGlobal = [nueva, ...estadoGlobal];
+    notificar();
     return nueva;
   }, []);
 
-  const toggle = useCallback(async (id: string) => {
-    setMisiones(prev => {
-      const next = prev.map(m => m.id === id ? { ...m, completed: !m.completed } : m);
-      persist(next);
-      return next;
-    });
+  const toggle = useCallback((id: string) => {
+    estadoGlobal = estadoGlobal.map(m =>
+      m.id === id ? { ...m, completed: !m.completed } : m
+    );
+    notificar();
   }, []);
 
-  const eliminar = useCallback(async (id: string) => {
-    setMisiones(prev => {
-      const next = prev.filter(m => m.id !== id);
-      persist(next);
-      return next;
-    });
+  const eliminar = useCallback((id: string) => {
+    estadoGlobal = estadoGlobal.filter(m => m.id !== id);
+    notificar();
   }, []);
 
-  const editar = useCallback(async (id: string, data: Partial<Pick<Mision, 'title' | 'categoria' | 'rango'>>) => {
-    setMisiones(prev => {
-      const next = prev.map(m => m.id === id ? { ...m, ...data } : m);
-      persist(next);
-      return next;
-    });
+  const editar = useCallback((id: string, data: Partial<Pick<Mision, 'title' | 'categoria' | 'rango'>>) => {
+    estadoGlobal = estadoGlobal.map(m =>
+      m.id === id ? { ...m, ...data } : m
+    );
+    notificar();
   }, []);
 
-  const cargarElite = useCallback(async () => {
+  const cargarElite = useCallback(() => {
     const nuevas = MISIONES_ELITE.map(m => ({
       ...m,
-      id: Date.now().toString() + Math.random(),
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       completed: false,
       createdAt: Date.now(),
     }));
-    setMisiones(prev => {
-      const next = [...nuevas, ...prev];
-      persist(next);
-      return next;
-    });
+    estadoGlobal = [...nuevas, ...estadoGlobal];
+    notificar();
   }, []);
+
+  // cargarMisiones existe por compatibilidad con HomeScreen (que lo llama en useFocusEffect)
+  const cargarMisiones = useCallback(() => {}, []);
 
   const stats = {
     total: misiones.length,
     completadas: misiones.filter(m => m.completed).length,
     pendientes: misiones.filter(m => !m.completed).length,
-    porcentaje: misiones.length > 0 ? Math.round((misiones.filter(m => m.completed).length / misiones.length) * 100) : 0,
+    porcentaje: misiones.length > 0
+      ? Math.round((misiones.filter(m => m.completed).length / misiones.length) * 100)
+      : 0,
   };
 
-  return { misiones, loading, agregar, toggle, eliminar, editar, cargarElite, stats, cargarMisiones };
+  return {
+    misiones,
+    loading: false,
+    agregar,
+    toggle,
+    eliminar,
+    editar,
+    cargarElite,
+    cargarMisiones,
+    stats,
+  };
 }

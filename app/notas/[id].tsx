@@ -1,56 +1,117 @@
 import { useLocalSearchParams, router } from 'expo-router';
-import { View, Text, StyleSheet, Alert, Pressable } from 'react-native';
-import * as Haptics from 'expo-haptics';
-import { useNotesStore } from '../../src/store/notesStore';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTheme } from '../../src/hooks/ThemeContext';
+import { useMisiones } from '../../src/hooks/useMisiones';
 import { Colors, Spacing } from '../../src/constants/colors';
 
-export default function DetalleNota() {
-  const { id } = useLocalSearchParams();
-  const { notes, deleteNote } = useNotesStore();
-  const nota = notes.find(n => n.id === id);
+// Ya no usa AsyncStorage directamente — lee del estado en memoria de useMisiones,
+// que es el mismo estado global que HomeScreen. Cualquier cambio en HomeScreen
+// se refleja aquí al instante sin necesidad de releer storage.
 
-  if (!nota) return null;
+export default function DetalleMision() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const { isDark } = useTheme();
+  const { misiones } = useMisiones();
 
-  const confirmarEliminacion = () => {
-    Alert.alert(
-      "ELIMINAR REGISTRO",
-      "¿Confirmas la purga de esta información, Niko?",
-      [
-        { text: "CANCELAR", style: "cancel" },
-        { 
-          text: "ELIMINAR", 
-          style: "destructive", 
-          onPress: async () => {
-            deleteNote(nota.id, 'text');
-            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-            router.back();
-          } 
-        }
-      ]
+  const mision = misiones.find(m => m.id === id) ?? null;
+
+  const bg = isDark ? Colors.zinc950 : Colors.parchmentLight;
+  const textColor = isDark ? Colors.stone200 : Colors.stone800;
+  const rangoColor = mision ? Colors.rangoColors[mision.rango] : Colors.gold;
+
+  if (!mision) {
+    return (
+      <View style={[styles.center, { backgroundColor: bg }]}>
+        <Text style={[styles.notFound, { color: Colors.stone400 }]}>Misión no encontrada</Text>
+        <Pressable onPress={() => router.back()} style={styles.backBtn}>
+          <Text style={styles.backBtnText}>← VOLVER</Text>
+        </Pressable>
+      </View>
     );
-  };
+  }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>{nota.title}</Text>
-      <Text style={styles.content}>{nota.content}</Text>
-      
-      <Pressable style={styles.deleteBtn} onPress={confirmarEliminacion}>
-        <Text style={styles.deleteText}>ELIMINAR DE MEMORIA</Text>
-      </Pressable>
-    </View>
+    <SafeAreaView style={[styles.safe, { backgroundColor: bg }]}>
+      <View style={[styles.container, { borderColor: rangoColor + '60' }]}>
+        {/* Rango badge */}
+        <View style={[styles.rangoBadge, { backgroundColor: rangoColor + '20', borderColor: rangoColor }]}>
+          <Text style={[styles.rangoText, { color: rangoColor }]}>RANGO {mision.rango}</Text>
+        </View>
+
+        <Text style={[styles.categoria, { color: Colors.gold }]}>
+          {mision.categoria.toUpperCase()}
+        </Text>
+
+        <Text style={[styles.title, { color: textColor }]}>{mision.title}</Text>
+
+        <View style={[styles.statusBadge, {
+          backgroundColor: mision.completed ? Colors.green600 + '20' : Colors.gold + '15',
+          borderColor: mision.completed ? Colors.green600 : Colors.gold,
+        }]}>
+          <Text style={[styles.statusText, { color: mision.completed ? Colors.green600 : Colors.gold }]}>
+            {mision.completed ? '✓ COMPLETADA' : '⏳ EN CURSO'}
+          </Text>
+        </View>
+
+        <View style={[styles.metaBox, { borderColor: Colors.stone200, backgroundColor: isDark ? Colors.zinc900 : Colors.stone100 }]}>
+          <Text style={[styles.metaLabel, { color: isDark ? Colors.stone500 : Colors.stone400 }]}>ID DEL ENCARGO</Text>
+          <Text style={[styles.metaValue, { color: isDark ? Colors.stone400 : Colors.stone600 }]}>{mision.id}</Text>
+        </View>
+
+        <Pressable
+          onPress={() => router.back()}
+          style={({ pressed }) => [styles.backBtn, { borderColor: Colors.gold }, pressed && { opacity: 0.7 }]}
+        >
+          <Text style={styles.backBtnText}>← VOLVER AL TABLÓN</Text>
+        </Pressable>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#09090b', padding: Spacing.xl },
-  title: { color: Colors.gold, fontFamily: 'PressStart2P_400Regular', fontSize: 16, marginBottom: 20 },
-  content: { color: '#ccc', fontFamily: 'Lora_400Regular', fontSize: 16, lineHeight: 24 },
-  deleteBtn: { 
-    marginTop: 'auto', 
-    borderWidth: 1, // ⬅️ Corregido de borderWeight a borderWidth
-    borderColor: '#ff4444', 
-    padding: 15, 
-    alignItems: 'center' 
-  }, deleteText: { color: '#ff4444', fontFamily: 'PressStart2P_400Regular', fontSize: 8 }
+  safe: { flex: 1 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  container: { flex: 1, margin: Spacing.xl, borderWidth: 2, padding: Spacing.xl },
+  rangoBadge: {
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    borderRadius: 2,
+    marginBottom: Spacing.lg,
+  },
+  rangoText: { fontFamily: 'PressStart2P_400Regular', fontSize: 8 },
+  categoria: {
+    fontFamily: 'PressStart2P_400Regular',
+    fontSize: 7,
+    marginBottom: Spacing.sm,
+    letterSpacing: 1,
+  },
+  title: {
+    fontFamily: 'Lora_700Bold',
+    fontSize: 24,
+    lineHeight: 32,
+    marginBottom: Spacing.xl,
+  },
+  statusBadge: {
+    borderWidth: 1,
+    padding: Spacing.md,
+    borderRadius: 2,
+    marginBottom: Spacing.xl,
+    alignItems: 'center',
+  },
+  statusText: { fontFamily: 'PressStart2P_400Regular', fontSize: 9 },
+  metaBox: {
+    borderWidth: 1,
+    padding: Spacing.md,
+    borderRadius: 2,
+    marginBottom: Spacing.xl,
+  },
+  metaLabel: { fontFamily: 'PressStart2P_400Regular', fontSize: 6, marginBottom: 6 },
+  metaValue: { fontFamily: 'Lora_400Regular', fontSize: 12 },
+  notFound: { fontFamily: 'PressStart2P_400Regular', fontSize: 9, marginBottom: Spacing.xl },
+  backBtn: { borderWidth: 1, padding: Spacing.md, alignItems: 'center', marginTop: 'auto' },
+  backBtnText: { fontFamily: 'PressStart2P_400Regular', fontSize: 8, color: Colors.gold },
 });
