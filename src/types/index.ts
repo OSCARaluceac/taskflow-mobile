@@ -26,13 +26,11 @@ export interface BaseNote {
   updatedAt: number;
 }
 
-export interface Note {
-  id: string;
-  title: string;
+// Bug fix: Note ahora extiende BaseNote y usa number para fechas,
+// consistente con el adaptador en api.ts (new Date().getTime())
+export interface Note extends BaseNote {
+  type: 'note';
   content: string;
-  type: 'note'; 
-  createdAt: string;
-  updatedAt: string;
 }
 
 export interface ChecklistItem {
@@ -42,14 +40,14 @@ export interface ChecklistItem {
 }
 
 export interface ChecklistNote extends BaseNote {
-  items: ChecklistItem[];
   type: 'checklist';
+  items: ChecklistItem[];
 }
 
 export interface IdeaNote extends BaseNote {
+  type: 'idea';
   tags: string[];
   color: string;
-  type: 'idea';
 }
 
 export type AnyNote = Note | ChecklistNote | IdeaNote;
