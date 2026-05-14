@@ -1,6 +1,6 @@
 import { Note, ChecklistNote, IdeaNote, AnyNote, ChecklistItem } from '../types';
 
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000/api';
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://noteflow-api-y6uh.vercel.app/api';
 
 // ─── Tipos internos de la API (snake_case de Postgres) ──────────────────────
 
