@@ -95,7 +95,7 @@ export default function ChecklistsScreen() {
         <Text style={[styles.title, { color: Colors.gold }]}>LISTAS</Text>
         <Pressable
           style={styles.addBtn}
-          onPress={() => router.push('/nueva-nota')}
+          onPress={() => router.push('/nueva-lista')}
         >
           <Text style={styles.addBtnText}>+ NUEVA</Text>
         </Pressable>
