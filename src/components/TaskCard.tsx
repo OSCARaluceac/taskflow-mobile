@@ -92,7 +92,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 4,
     elevation: 2,
-    overflow: 'hidden',
   },
   rangoBar: {
     width: 4,
