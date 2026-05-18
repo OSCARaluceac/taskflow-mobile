@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Mision, Rango, Categoria } from '../types';
 
 // Las misiones son datos de juego locales — no se sincronizan con la API
@@ -40,18 +40,12 @@ function notificar() {
 export function useMisiones() {
   const [, forceUpdate] = useState(0);
 
-  // Suscribirse a cambios del estado global
-  const suscribirse = useCallback(() => {
+  // Suscribirse a cambios del estado global al montar, limpiar al desmontar
+  useEffect(() => {
     const actualizar = () => forceUpdate(n => n + 1);
     suscriptores.add(actualizar);
     return () => suscriptores.delete(actualizar);
   }, []);
-
-  // Ejecutar suscripción al montar
-  useState(() => {
-    const unsub = suscribirse();
-    return unsub;
-  });
 
   const misiones = estadoGlobal;
 
