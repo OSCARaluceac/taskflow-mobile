@@ -1,8 +1,10 @@
-import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { useTheme } from '../../src/hooks/ThemeContext';
 import { useMisiones } from '../../src/hooks/useMisiones';
 import { Colors, Spacing } from '../../src/constants/colors';
+import { clearToken } from '../../src/lib/api';
 
 /**
  * CORRECCIÓN: Se elimina la imagen de via.placeholder.com (da 404 en muchos
@@ -17,14 +19,10 @@ export default function PerfilScreen() {
   const cardBg = isDark ? Colors.zinc900 : Colors.parchment;
 
   const handleLogout = () => {
-    Alert.alert(
-      'CONFIRMACIÓN DE RETIRADA',
-      '¿Estás seguro de que deseas abandonar el puesto de mando?',
-      [
-        { text: 'PERMANECER', style: 'cancel' },
-        { text: 'RETIRARSE', style: 'destructive', onPress: () => console.log('Sesión cerrada') },
-      ]
-    );
+    if (window.confirm('¿Estás seguro de que deseas abandonar el puesto de mando?')) {
+      clearToken();
+      router.replace('/login');
+    }
   };
 
   return (

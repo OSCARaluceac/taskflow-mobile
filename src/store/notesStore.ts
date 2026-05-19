@@ -41,6 +41,11 @@ export const useNotesStore = create<NotesState>()((set) => ({
       });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Error desconocido';
+      if (msg.includes('401') || msg.includes('No autorizado') || msg.includes('autorizado')) {
+        clearToken();
+        router.replace('/login');
+        return;
+      }
       set({ error: msg });
     } finally {
       set({ isLoading: false });

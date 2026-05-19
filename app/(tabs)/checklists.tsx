@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList,
-  Pressable, ActivityIndicator, Alert,
+  Pressable, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
@@ -11,24 +11,20 @@ import { Colors, Spacing } from '../../src/constants/colors';
 import { ChecklistNote } from '../../src/types';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
-function ChecklistRow({ checklist, isDark, onDelete }: {
+function ChecklistRow({ checklist, isDark, onDelete, onToggle }: {
   checklist: ChecklistNote;
   isDark: boolean;
   onDelete: (id: string) => void;
+  onToggle: (checklistId: string, itemId: string, current: boolean) => void;
 }) {
   const done = checklist.items.filter(i => i.isCompleted).length;
   const total = checklist.items.length;
   const pct = total > 0 ? (done / total) * 100 : 0;
 
   const confirmDelete = () => {
-    Alert.alert(
-      'ELIMINAR LISTA',
-      `¿Purgar "${checklist.title}"?`,
-      [
-        { text: 'CANCELAR', style: 'cancel' },
-        { text: 'ELIMINAR', style: 'destructive', onPress: () => onDelete(checklist.id) },
-      ]
-    );
+    if (window.confirm(`¿Eliminar la lista "${checklist.title}"?`)) {
+      onDelete(checklist.id);
+    }
   };
 
   return (
@@ -54,7 +50,7 @@ function ChecklistRow({ checklist, isDark, onDelete }: {
 
         {/* Primeros 3 items como preview */}
         {checklist.items.slice(0, 3).map(item => (
-          <View key={item.id} style={styles.itemRow}>
+          <Pressable key={item.id} style={styles.itemRow} onPress={() => onToggle(checklist.id, item.id, item.isCompleted)}>
             <Text style={[styles.itemCheck, { color: item.isCompleted ? Colors.green600 : Colors.stone600 }]}>
               {item.isCompleted ? '☑' : '☐'}
             </Text>
@@ -65,7 +61,7 @@ function ChecklistRow({ checklist, isDark, onDelete }: {
             ]}>
               {item.text}
             </Text>
-          </View>
+          </Pressable>
         ))}
         {checklist.items.length > 3 && (
           <Text style={[styles.moreText, { color: Colors.stone500 }]}>
@@ -79,7 +75,7 @@ function ChecklistRow({ checklist, isDark, onDelete }: {
 
 export default function ChecklistsScreen() {
   const { isDark } = useTheme();
-  const { checklists, isLoading, error, fetchNotes, deleteNote } = useNotesStore();
+  const { checklists, isLoading, error, fetchNotes, deleteNote, toggleChecklistItem } = useNotesStore();
   const bg = isDark ? Colors.zinc950 : Colors.parchmentLight;
 
   // Recarga al volver a la pantalla (por si se creó un checklist nuevo)
@@ -123,7 +119,7 @@ export default function ChecklistsScreen() {
           keyExtractor={c => c.id}
           contentContainerStyle={{ padding: Spacing.lg, gap: Spacing.md }}
           renderItem={({ item }) => (
-            <ChecklistRow checklist={item} isDark={isDark} onDelete={handleDelete} />
+            <ChecklistRow checklist={item} isDark={isDark} onDelete={handleDelete} onToggle={toggleChecklistItem} />
           )}
           ListEmptyComponent={
             <View style={styles.center}>

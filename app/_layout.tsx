@@ -1,45 +1,41 @@
 import { useEffect } from 'react';
-import { Stack, router, useSegments } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { ThemeProvider } from '../src/hooks/ThemeContext';
 import { useFonts } from 'expo-font';
 import { PressStart2P_400Regular } from '@expo-google-fonts/press-start-2p';
-import { Lora_400Regular, Lora_700Bold, Lora_400Regular_Italic } from '@expo-google-fonts/lora';
+import {
+  Lora_400Regular,
+  Lora_700Bold,
+  Lora_400Regular_Italic,
+} from '@expo-google-fonts/lora';
 import * as SplashScreen from 'expo-splash-screen';
 import { View, ActivityIndicator } from 'react-native';
 import { Colors } from '../src/constants/colors';
-import { useAuthStore } from '../src/store/authStore';
 import { useNotesStore } from '../src/store/notesStore';
-import { setApiToken } from '../src/lib/api';
 
 SplashScreen.preventAutoHideAsync();
 
-// Gestiona la sesión: si no hay token redirige al login,
-// si hay token inyecta el token en api.ts y carga los datos.
-function AuthGate() {
-  const { token } = useAuthStore();
-  const { fetchNotes } = useNotesStore();
-  const segments = useSegments();
-
+// Componente separado para cargar notas al arrancar.
+// Se monta dentro de ThemeProvider para tener acceso al contexto.
+function AppInit() {
+  const fetchNotes = useNotesStore(s => s.fetchNotes);
   useEffect(() => {
-    // Inyectar token en todas las peticiones de api.ts
-    setApiToken(token);
-
-    const inAuthScreen = segments[0] === 'login';
-
-    if (!token && !inAuthScreen) {
-      router.replace('/login');
-    } else if (token && inAuthScreen) {
-      router.replace('/(tabs)');
-    }
-  }, [token, segments]);
-
-  // Cargar datos cuando haya sesión activa
-  useEffect(() => {
-    if (token) {
-      fetchNotes();
-    }
-  }, [token]);
-
+    const t = setTimeout(() => {
+      // Si ya hay token guardado, ir directo a tabs
+      try {
+        const token = localStorage.getItem('auth_token');
+        if (token) {
+          fetchNotes();
+          router.replace('/(tabs)');
+        } else {
+          router.replace('/login');
+        }
+      } catch {
+        router.replace('/login');
+      }
+    }, 0);
+    return () => clearTimeout(t);
+  }, []);
   return null;
 }
 
@@ -52,7 +48,9 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    if (fontsLoaded || fontError) SplashScreen.hideAsync();
+    if (fontsLoaded || fontError) {
+      SplashScreen.hideAsync();
+    }
   }, [fontsLoaded, fontError]);
 
   if (!fontsLoaded && !fontError) {
@@ -65,12 +63,20 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider>
-      <AuthGate />
+      <AppInit />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="login" />
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="nueva-mision" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
-        <Stack.Screen name="nueva-lista" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+        {/* Modales: se presentan desde abajo sobre el contenido actual */}
+        <Stack.Screen
+          name="nueva-mision"
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
+        <Stack.Screen
+          name="nueva-lista"
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
+        {/* Pantallas de detalle con header */}
         <Stack.Screen
           name="tareas/[id]"
           options={{
