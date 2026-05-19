@@ -1,27 +1,45 @@
 import { useEffect } from 'react';
-import { Stack } from 'expo-router';
+import { Stack, router, useSegments } from 'expo-router';
 import { ThemeProvider } from '../src/hooks/ThemeContext';
 import { useFonts } from 'expo-font';
 import { PressStart2P_400Regular } from '@expo-google-fonts/press-start-2p';
-import {
-  Lora_400Regular,
-  Lora_700Bold,
-  Lora_400Regular_Italic,
-} from '@expo-google-fonts/lora';
+import { Lora_400Regular, Lora_700Bold, Lora_400Regular_Italic } from '@expo-google-fonts/lora';
 import * as SplashScreen from 'expo-splash-screen';
 import { View, ActivityIndicator } from 'react-native';
 import { Colors } from '../src/constants/colors';
+import { useAuthStore } from '../src/store/authStore';
 import { useNotesStore } from '../src/store/notesStore';
+import { setApiToken } from '../src/lib/api';
 
 SplashScreen.preventAutoHideAsync();
 
-// Componente separado para cargar notas al arrancar.
-// Se monta dentro de ThemeProvider para tener acceso al contexto.
-function AppInit() {
-  const fetchNotes = useNotesStore(s => s.fetchNotes);
+// Gestiona la sesión: si no hay token redirige al login,
+// si hay token inyecta el token en api.ts y carga los datos.
+function AuthGate() {
+  const { token } = useAuthStore();
+  const { fetchNotes } = useNotesStore();
+  const segments = useSegments();
+
   useEffect(() => {
-    fetchNotes();
-  }, []);
+    // Inyectar token en todas las peticiones de api.ts
+    setApiToken(token);
+
+    const inAuthScreen = segments[0] === 'login';
+
+    if (!token && !inAuthScreen) {
+      router.replace('/login');
+    } else if (token && inAuthScreen) {
+      router.replace('/(tabs)');
+    }
+  }, [token, segments]);
+
+  // Cargar datos cuando haya sesión activa
+  useEffect(() => {
+    if (token) {
+      fetchNotes();
+    }
+  }, [token]);
+
   return null;
 }
 
@@ -34,9 +52,7 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    if (fontsLoaded || fontError) {
-      SplashScreen.hideAsync();
-    }
+    if (fontsLoaded || fontError) SplashScreen.hideAsync();
   }, [fontsLoaded, fontError]);
 
   if (!fontsLoaded && !fontError) {
@@ -49,19 +65,12 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider>
-      <AppInit />
+      <AuthGate />
       <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="login" />
         <Stack.Screen name="(tabs)" />
-        {/* Modales: se presentan desde abajo sobre el contenido actual */}
-        <Stack.Screen
-          name="nueva-mision"
-          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
-        />
-        <Stack.Screen
-          name="nueva-lista"
-          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
-        />
-        {/* Pantallas de detalle con header */}
+        <Stack.Screen name="nueva-mision" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="nueva-lista" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
         <Stack.Screen
           name="tareas/[id]"
           options={{
