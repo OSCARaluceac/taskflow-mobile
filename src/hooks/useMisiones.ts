@@ -1,36 +1,19 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Mision, Rango, Categoria } from '../types';
+import {
+  getMisiones,
+  createMision,
+  toggleMisionApi,
+  editMisionApi,
+  deleteMisionApi,
+} from '../lib/api';
 
-// Las misiones son datos de juego locales — no se sincronizan con la API
-// de la Fase 7 (que es solo para notas). Se guardan en memoria mientras
-// la app está abierta. En una fase futura se podría añadir persistencia
-// con expo-file-system o una tabla separada en el backend.
-
-const MISIONES_ELITE: Omit<Mision, 'id' | 'completed' | 'createdAt'>[] = [
-  { title: 'Cazar al Dragón Escarlata del Pico Eterno', categoria: 'Caza', rango: 'S' },
-  { title: 'Escoltar a la Embajadora al Reino del Norte', categoria: 'Escolta', rango: 'A' },
-  { title: 'Explorar las Ruinas Sumergidas de Valdris', categoria: 'Exploración', rango: 'B' },
-  { title: 'Recolectar Hongos de la Cueva Sombría', categoria: 'Recolección', rango: 'C' },
-  { title: 'Capturar al Bandido "La Sombra"', categoria: 'Captura', rango: 'D' },
-  { title: 'Descubrir el Puesto de Avanzada de los Trasgos', categoria: 'Exploración', rango: 'A' },
-  { title: 'Recuperar el Amuleto de los Antiguos', categoria: 'Exploración', rango: 'S' },
-  { title: 'Limpiar la Plaga de las Alcantarillas', categoria: 'Caza', rango: 'C' },
-  { title: 'Entregar Documentos Confidenciales al Rey', categoria: 'Escolta', rango: 'B' },
-  { title: 'Mantenimiento del Jardín de la Academia', categoria: 'Recolección', rango: 'D' },
-];
-
-function crearMisionesIniciales(): Mision[] {
-  return MISIONES_ELITE.map((m, i) => ({
-    ...m,
-    id: `init-${i}`,
-    completed: false,
-    createdAt: Date.now() - i * 1000,
-  }));
-}
-
-// Estado global en módulo — persiste mientras la app esté en memoria
-// (sobrevive a navegación entre pantallas, pero no a un cierre completo)
-let estadoGlobal: Mision[] = crearMisionesIniciales();
+// Estado global en módulo — compartido entre todas las instancias del hook.
+// La fuente de verdad es ahora el servidor (Neon/PostgreSQL).
+// Este estado es solo la caché local mientras la app está abierta.
+let estadoGlobal: Mision[] = [];
+let loadingGlobal = false;
+let cargadoUnaVez = false;
 const suscriptores: Set<() => void> = new Set();
 
 function notificar() {
@@ -40,74 +23,111 @@ function notificar() {
 export function useMisiones() {
   const [, forceUpdate] = useState(0);
 
-  // Suscribirse a cambios del estado global al montar, limpiar al desmontar
   useEffect(() => {
     const actualizar = () => forceUpdate(n => n + 1);
     suscriptores.add(actualizar);
     return () => suscriptores.delete(actualizar);
   }, []);
 
-  const misiones = estadoGlobal;
+  // Carga las misiones desde el servidor. Solo hace fetch si no se han
+  // cargado ya en esta sesión (evita llamadas repetidas en useFocusEffect).
+  const cargarMisiones = useCallback(async () => {
+    if (loadingGlobal) return;
+    loadingGlobal = true;
+    notificar();
+    try {
+      const data = await getMisiones();
+      estadoGlobal = data;
+      cargadoUnaVez = true;
+    } catch (e) {
+      console.error('useMisiones — cargarMisiones error:', e);
+    } finally {
+      loadingGlobal = false;
+      notificar();
+    }
+  }, []);
 
-  const agregar = useCallback((title: string, categoria: Categoria, rango: Rango) => {
-    const nueva: Mision = {
-      id: Date.now().toString(),
-      title,
-      categoria,
-      rango,
-      completed: false,
-      createdAt: Date.now(),
-    };
+  // Carga automática al primer montaje si no se han cargado todavía
+  useEffect(() => {
+    if (!cargadoUnaVez) {
+      cargarMisiones();
+    }
+  }, [cargarMisiones]);
+
+  const agregar = useCallback(async (title: string, categoria: Categoria, rango: Rango) => {
+    const nueva = await createMision(title, categoria, rango);
+    // Actualización optimista: añadir al principio sin esperar al servidor
     estadoGlobal = [nueva, ...estadoGlobal];
     notificar();
     return nueva;
   }, []);
 
-  const toggle = useCallback((id: string) => {
+  const toggle = useCallback(async (id: string) => {
+    const mision = estadoGlobal.find(m => m.id === id);
+    if (!mision) return;
+    const nuevoCompleted = !mision.completed;
+    // Actualización optimista
     estadoGlobal = estadoGlobal.map(m =>
-      m.id === id ? { ...m, completed: !m.completed } : m
+      m.id === id ? { ...m, completed: nuevoCompleted } : m
     );
     notificar();
+    // Sincronizar con el servidor
+    await toggleMisionApi(id, nuevoCompleted);
   }, []);
 
-  const eliminar = useCallback((id: string) => {
+  const eliminar = useCallback(async (id: string) => {
+    // Actualización optimista
     estadoGlobal = estadoGlobal.filter(m => m.id !== id);
     notificar();
+    await deleteMisionApi(id);
   }, []);
 
-  const editar = useCallback((id: string, data: Partial<Pick<Mision, 'title' | 'categoria' | 'rango'>>) => {
+  const editar = useCallback(async (
+    id: string,
+    data: Partial<Pick<Mision, 'title' | 'categoria' | 'rango'>>
+  ) => {
+    // Actualización optimista
     estadoGlobal = estadoGlobal.map(m =>
       m.id === id ? { ...m, ...data } : m
     );
     notificar();
+    await editMisionApi(id, data);
   }, []);
 
-  const cargarElite = useCallback(() => {
-    const nuevas = MISIONES_ELITE.map(m => ({
-      ...m,
-      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      completed: false,
-      createdAt: Date.now(),
-    }));
+  // cargarElite: carga 10 misiones de ejemplo directamente en la BD
+  const cargarElite = useCallback(async () => {
+    const MISIONES_ELITE: { title: string; categoria: Categoria; rango: Rango }[] = [
+      { title: 'Cazar al Dragón Escarlata del Pico Eterno',       categoria: 'Caza',        rango: 'S' },
+      { title: 'Escoltar a la Embajadora al Reino del Norte',     categoria: 'Escolta',     rango: 'A' },
+      { title: 'Explorar las Ruinas Sumergidas de Valdris',       categoria: 'Exploración', rango: 'B' },
+      { title: 'Recolectar Hongos de la Cueva Sombría',           categoria: 'Recolección', rango: 'C' },
+      { title: 'Capturar al Bandido "La Sombra"',                 categoria: 'Captura',     rango: 'D' },
+      { title: 'Descubrir el Puesto de Avanzada de los Trasgos',  categoria: 'Exploración', rango: 'A' },
+      { title: 'Recuperar el Amuleto de los Antiguos',            categoria: 'Exploración', rango: 'S' },
+      { title: 'Limpiar la Plaga de las Alcantarillas',           categoria: 'Caza',        rango: 'C' },
+      { title: 'Entregar Documentos Confidenciales al Rey',       categoria: 'Escolta',     rango: 'B' },
+      { title: 'Mantenimiento del Jardín de la Academia',         categoria: 'Recolección', rango: 'D' },
+    ];
+    // Insertar todas en paralelo
+    const nuevas = await Promise.all(
+      MISIONES_ELITE.map(m => createMision(m.title, m.categoria, m.rango))
+    );
     estadoGlobal = [...nuevas, ...estadoGlobal];
     notificar();
   }, []);
 
-  // cargarMisiones existe por compatibilidad con HomeScreen (que lo llama en useFocusEffect)
-  const cargarMisiones = useCallback(() => {}, []);
-
   const stats = {
-    total: misiones.length,
-    completadas: misiones.filter(m => m.completed).length,
-    pendientes: misiones.filter(m => !m.completed).length,
-    porcentaje: misiones.length > 0
-      ? Math.round((misiones.filter(m => m.completed).length / misiones.length) * 100)
+    total:       estadoGlobal.length,
+    completadas: estadoGlobal.filter(m => m.completed).length,
+    pendientes:  estadoGlobal.filter(m => !m.completed).length,
+    porcentaje:  estadoGlobal.length > 0
+      ? Math.round((estadoGlobal.filter(m => m.completed).length / estadoGlobal.length) * 100)
       : 0,
   };
 
   return {
-    misiones,
-    loading: false,
+    misiones:       estadoGlobal,
+    loading:        loadingGlobal,
     agregar,
     toggle,
     eliminar,

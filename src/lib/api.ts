@@ -99,3 +99,77 @@ export async function toggleItemApi(itemId: string, isCompleted: boolean): Promi
   });
   if (!res.ok) throw new Error('Error al actualizar item');
 }
+
+// ─── Tipos de Misiones (API) ─────────────────────────────────────────────────
+
+import { Mision, Rango, Categoria } from '../types';
+
+type ApiMision = {
+  id: string;
+  title: string;
+  categoria: Categoria;
+  rango: Rango;
+  completed: boolean;
+  created_at: string;
+};
+
+function adaptMision(api: ApiMision): Mision {
+  return {
+    id: api.id,
+    title: api.title,
+    categoria: api.categoria,
+    rango: api.rango,
+    completed: api.completed,
+    createdAt: new Date(api.created_at).getTime(),
+  };
+}
+
+// ─── Funciones de API — Misiones ─────────────────────────────────────────────
+
+export async function getMisiones(): Promise<Mision[]> {
+  const res = await fetch(`${BASE_URL}/misiones`);
+  if (!res.ok) throw new Error('Error al cargar misiones');
+  const data: ApiMision[] = await res.json();
+  return data.map(adaptMision);
+}
+
+export async function createMision(
+  title: string, categoria: Categoria, rango: Rango
+): Promise<Mision> {
+  const res = await fetch(`${BASE_URL}/misiones`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, categoria, rango }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body?.error ?? 'Error al crear misión');
+  }
+  return adaptMision(await res.json());
+}
+
+export async function toggleMisionApi(id: string, completed: boolean): Promise<void> {
+  const res = await fetch(`${BASE_URL}/misiones/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ completed }),
+  });
+  if (!res.ok) throw new Error('Error al actualizar misión');
+}
+
+export async function editMisionApi(
+  id: string,
+  data: Partial<Pick<Mision, 'title' | 'categoria' | 'rango'>>
+): Promise<void> {
+  const res = await fetch(`${BASE_URL}/misiones/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Error al editar misión');
+}
+
+export async function deleteMisionApi(id: string): Promise<void> {
+  const res = await fetch(`${BASE_URL}/misiones/${id}`, { method: 'DELETE' });
+  if (!res.ok && res.status !== 404) throw new Error('Error al eliminar misión');
+}
