@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Mision, Rango, Categoria } from '../types';
 
 const STORAGE_KEY = 'taskflow-misiones';
@@ -26,46 +27,62 @@ function crearMisionesIniciales(): Mision[] {
   }));
 }
 
-// ─── Persistencia en localStorage ────────────────────────────────────────────
+// ─── Persistencia con AsyncStorage ───────────────────────────────────────────
 
-function cargarDesdeStorage(): Mision[] {
+async function cargarDesdeStorage(): Promise<Mision[]> {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = await AsyncStorage.getItem(STORAGE_KEY);
     if (raw) return JSON.parse(raw) as Mision[];
-  } catch {}
+  } catch (e) {
+    console.error('[useMisiones] Error al leer AsyncStorage:', e);
+  }
   return crearMisionesIniciales();
 }
 
-function guardarEnStorage(misiones: Mision[]) {
+async function guardarEnStorage(misiones: Mision[]): Promise<void> {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(misiones));
-  } catch {}
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(misiones));
+  } catch (e) {
+    console.error('[useMisiones] Error al escribir AsyncStorage:', e);
+  }
 }
 
 // ─── Estado global en módulo ──────────────────────────────────────────────────
+// FIX: estadoGlobal arranca como array vacío. La carga desde AsyncStorage
+// ocurre DENTRO del useEffect (no a nivel de módulo), para evitar que se
+// ejecute antes de que el runtime nativo esté listo.
 
-let estadoGlobal: Mision[] = cargarDesdeStorage();
+let estadoGlobal: Mision[] = [];
+let inicializado = false;
 const suscriptores: Set<() => void> = new Set();
 
 function notificar() {
   suscriptores.forEach(fn => fn());
 }
 
-function actualizarEstado(nuevas: Mision[]) {
+async function actualizarEstado(nuevas: Mision[]): Promise<void> {
   estadoGlobal = nuevas;
-  guardarEnStorage(nuevas);
   notificar();
+  await guardarEnStorage(nuevas);
 }
 
 export function useMisiones() {
   const [, forceUpdate] = useState(0);
 
-  // Suscribirse a cambios del estado global al montar, limpiar al desmontar
   useEffect(() => {
     const actualizar = () => forceUpdate(n => n + 1);
     suscriptores.add(actualizar);
-    
-    // El retorno ahora está encapsulado en llaves, cumpliendo la norma de React
+
+    // FIX: la carga inicial ocurre aquí, dentro del useEffect,
+    // garantizando que el bridge nativo ya está activo.
+    if (!inicializado) {
+      inicializado = true;
+      cargarDesdeStorage().then(misiones => {
+        estadoGlobal = misiones;
+        notificar();
+      });
+    }
+
     return () => {
       suscriptores.delete(actualizar);
     };
@@ -73,7 +90,12 @@ export function useMisiones() {
 
   const misiones = estadoGlobal;
 
-  const agregar = useCallback((title: string, categoria: Categoria, rango: Rango, imageUrl?: string | null) => {
+  const agregar = useCallback((
+    title: string,
+    categoria: Categoria,
+    rango: Rango,
+    imageUrl?: string | null,
+  ) => {
     const nueva: Mision = {
       id: Date.now().toString(),
       title,
@@ -81,7 +103,7 @@ export function useMisiones() {
       rango,
       completed: false,
       createdAt: Date.now(),
-      imageUrl: imageUrl || null,
+      imageUrl: imageUrl ?? null,
     };
     actualizarEstado([nueva, ...estadoGlobal]);
     return nueva;
@@ -97,7 +119,10 @@ export function useMisiones() {
     actualizarEstado(estadoGlobal.filter(m => m.id !== id));
   }, []);
 
-  const editar = useCallback((id: string, data: Partial<Pick<Mision, 'title' | 'categoria' | 'rango' | 'imageUrl'>>) => {
+  const editar = useCallback((
+    id: string,
+    data: Partial<Pick<Mision, 'title' | 'categoria' | 'rango' | 'imageUrl'>>,
+  ) => {
     actualizarEstado(
       estadoGlobal.map(m => m.id === id ? { ...m, ...data } : m)
     );
@@ -127,7 +152,7 @@ export function useMisiones() {
 
   return {
     misiones,
-    loading: false,
+    loading: !inicializado,
     agregar,
     toggle,
     eliminar,

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Image } from 'react-native';
 import { Mision } from '../types';
 import { Colors, Spacing } from '../constants/colors';
 
@@ -46,6 +46,19 @@ export function TaskCard({ mision, onToggle, onEdit, onDelete, isDark }: Props) 
         >
           {mision.title}
         </Text>
+
+        {/* ➔ NUEVO: Prueba Gráfica Adjunta */}
+        {mision.imageUrl && (
+          <View style={[styles.imageWrapper, { borderTopColor: isDark ? Colors.stone700 : Colors.stone400 }]}>
+            <Text style={[styles.imageLabel, { color: isDark ? Colors.stone400 : Colors.stone500 }]}>
+              [ PRUEBA GRÁFICA ANEXADA ]
+            </Text>
+            <Image 
+              source={{ uri: mision.imageUrl }} 
+              style={[styles.attachedImage, completed && { opacity: 0.5 }]} 
+            />
+          </View>
+        )}
       </View>
 
       {/* Acciones */}
@@ -92,6 +105,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 4,
     elevation: 2,
+    marginBottom: Spacing.sm,
   },
   rangoBar: {
     width: 4,
@@ -132,6 +146,25 @@ const styles = StyleSheet.create({
   titleCompleted: {
     textDecorationLine: 'line-through',
     textDecorationColor: Colors.gold,
+  },
+  imageWrapper: {
+    marginTop: Spacing.md,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderStyle: 'dashed',
+  },
+  imageLabel: {
+    fontSize: 6,
+    fontFamily: 'PressStart2P_400Regular',
+    marginBottom: 6,
+  },
+  attachedImage: {
+    width: '100%',
+    height: 100,
+    borderWidth: 1,
+    borderColor: Colors.gold,
+    borderRadius: 2,
+    resizeMode: 'cover',
   },
   actions: {
     flexDirection: 'column',
