@@ -15,8 +15,8 @@ export interface Mision {
   rango: Rango;
   completed: boolean;
   createdAt: number;
+  imageUrl?: string | null; // ➔ Fotografía adjunta (opcional)
 }
-
 // ─── Tipos de Notas ───────────────────────────────────────────────────────────
 
 export interface BaseNote {

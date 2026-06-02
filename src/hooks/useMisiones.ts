@@ -3,7 +3,7 @@ import { Mision, Rango, Categoria } from '../types';
 
 const STORAGE_KEY = 'taskflow-misiones';
 
-const MISIONES_ELITE: Omit<Mision, 'id' | 'completed' | 'createdAt'>[] = [
+const MISIONES_ELITE: Omit<Mision, 'id' | 'completed' | 'createdAt' | 'imageUrl'>[] = [
   { title: 'Cazar al Dragón Escarlata del Pico Eterno', categoria: 'Caza', rango: 'S' },
   { title: 'Escoltar a la Embajadora al Reino del Norte', categoria: 'Escolta', rango: 'A' },
   { title: 'Explorar las Ruinas Sumergidas de Valdris', categoria: 'Exploración', rango: 'B' },
@@ -22,6 +22,7 @@ function crearMisionesIniciales(): Mision[] {
     id: `init-${i}`,
     completed: false,
     createdAt: Date.now() - i * 1000,
+    imageUrl: null,
   }));
 }
 
@@ -63,12 +64,16 @@ export function useMisiones() {
   useEffect(() => {
     const actualizar = () => forceUpdate(n => n + 1);
     suscriptores.add(actualizar);
-    return () => suscriptores.delete(actualizar);
+    
+    // El retorno ahora está encapsulado en llaves, cumpliendo la norma de React
+    return () => {
+      suscriptores.delete(actualizar);
+    };
   }, []);
 
   const misiones = estadoGlobal;
 
-  const agregar = useCallback((title: string, categoria: Categoria, rango: Rango) => {
+  const agregar = useCallback((title: string, categoria: Categoria, rango: Rango, imageUrl?: string | null) => {
     const nueva: Mision = {
       id: Date.now().toString(),
       title,
@@ -76,6 +81,7 @@ export function useMisiones() {
       rango,
       completed: false,
       createdAt: Date.now(),
+      imageUrl: imageUrl || null,
     };
     actualizarEstado([nueva, ...estadoGlobal]);
     return nueva;
@@ -91,7 +97,7 @@ export function useMisiones() {
     actualizarEstado(estadoGlobal.filter(m => m.id !== id));
   }, []);
 
-  const editar = useCallback((id: string, data: Partial<Pick<Mision, 'title' | 'categoria' | 'rango'>>) => {
+  const editar = useCallback((id: string, data: Partial<Pick<Mision, 'title' | 'categoria' | 'rango' | 'imageUrl'>>) => {
     actualizarEstado(
       estadoGlobal.map(m => m.id === id ? { ...m, ...data } : m)
     );
@@ -103,6 +109,7 @@ export function useMisiones() {
       id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       completed: false,
       createdAt: Date.now(),
+      imageUrl: null,
     }));
     actualizarEstado([...nuevas, ...estadoGlobal]);
   }, []);
